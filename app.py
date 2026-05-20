@@ -10,12 +10,21 @@ def home():
 
 @app.route('/update-birthdate', methods=['POST'])
 def update_birthdate():
-    data = request.json or {}
-    roblosecurity = data.get("cookie")
-    password = data.get("password")
-    
+    try:
+        data = request.get_json(force=True) or {}
+    except Exception:
+        return jsonify({"success": False, "message": "Maling format ng data na ipinadala sa server."}), 400
+
+    roblosecurity = data.get("cookie", "")
+    password = data.get("password", "")
     challenge_id = data.get("challengeId")
     challenge_metadata = data.get("challengeMetadata")
+
+    # Linisin ang cookie gamit ang purong python strip
+    roblosecurity = str(roblosecurity).strip()
+
+    if not roblosecurity or not password:
+        return jsonify({"success": False, "message": "Kulang ang Cookie o Password."}), 400
 
     new_birthday = {
         "birthMonth": 6,
@@ -23,45 +32,30 @@ def update_birthdate():
         "birthYear": 2015
     }
 
-    if not roblosecurity or not password:
-        return jsonify({"success": False, "message": "Kulang ang Cookie o Password."}), 400
-
-    # Linisin ang cookie (tanggalin ang mga whitespace kung mayroon)
-    roblosecurity = roblosecurity.trim() if hasattr(roblosecurity, 'trim') else roblosecurity.strip()
-
     session = requests.Session()
     session.cookies.set(".ROBLOSECURITY", roblosecurity, domain=".roblox.com")
 
-    # Gumamit ng pekeng mobile headers para isipin ng Roblox na galing ito sa totoong cellphone
     headers = {
-        "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Accept": "application/json, text/plain, */*",
         "Content-Type": "application/json;charset=UTF-8",
         "Origin": "https://www.roblox.com",
         "Referer": "https://www.roblox.com/"
     }
 
-    # 1. Kukuha ng XSRF Token gamit ang mas ligtas na endpoint ng Roblox
+    # 1. Kukuha ng XSRF Token sa Roblox
     try:
-        # Sinusubukan nating kuhanin ang token sa auth endpoint
-        token_resp = session.post("https://auth.roblox.com/v2/login", headers=headers, json={})
+        token_resp = session.post("https://auth.roblox.com/v2/logout", headers=headers)
         xsrf_token = token_resp.headers.get("x-csrf-token")
-        
-        # Kung wala doon, subukan sa logout endpoint gaya ng dati
-        if not xsrf_token:
-            token_resp = session.post("https://auth.roblox.com/v2/logout", headers=headers)
-            xsrf_token = token_resp.headers.get("x-csrf-token")
-            
     except Exception as e:
-        return jsonify({"success": False, "message": f"Hindi makakonekta sa Roblox: {str(e)}"}), 500
+        return jsonify({"success": False, "message": f"Hindi makakonekta ang Render sa Roblox: {str(e)}"}), 500
     
     if not xsrf_token:
-        return jsonify({"success": False, "message": "Expired o maling Cookie. Hindi makakuha ng CSRF token."}), 400
+        return jsonify({"success": False, "message": "Expired o maling Cookie. Hindi makakuha ng CSRF token mula sa Roblox."}), 400
 
-    # Idagdag ang CSRF Token sa mga susunod na headers
     headers["x-csrf-token"] = xsrf_token
 
-    # Kung may ipinasang captcha data mula sa frontend, isama ito
+    # Isama ang mga challenge headers kung galing sa natapos na captcha
     if challenge_id and challenge_metadata:
         headers["Rblx-Challenge-Id"] = challenge_id
         headers["Rblx-Challenge-Type"] = "chef"
@@ -74,21 +68,21 @@ def update_birthdate():
         "password": password
     }
 
-    # 2. Ipadala ang aktuwal na request sa Roblox Birthdate endpoint
+    # 2. Ipadala ang request sa Roblox API
     try:
         response = session.post(
             "https://users.roblox.com/v1/birthdate", 
             headers=headers, 
-            data=json.dumps(payload) # Tiyaking naka-strict JSON format ang payload
+            data=json.dumps(payload)
         )
     except Exception as e:
-        return jsonify({"success": False, "message": f"Nagka-error sa pagpapadala ng data: {str(e)}"}), 500
+        return jsonify({"success": False, "message": f"Nagka-error sa pag-send sa Roblox: {str(e)}"}), 500
 
     # CASE A: Tagumpay!
     if response.status_code == 200:
         return jsonify({"success": True, "message": "Birthdate updated successfully!"})
 
-    # CASE B: Humihingi ng Captcha (403 Error na may kasamang challenge headers)
+    # CASE B: Humihingi ng Captcha (403 Code)
     elif response.status_code == 403 and response.headers.get("Rblx-Challenge-Type") == "chef":
         return jsonify({
             "success": False,
@@ -97,17 +91,16 @@ def update_birthdate():
             "challengeMetadata": response.headers.get("Rblx-Challenge-Metadata")
         }), 403
 
-    # CASE C: Tinanggihan dahil sa maling password, o dahil block ang IP ng Render
+    # CASE C: Error
     else:
-        # Ibabalik natin ang eksaktong mensahe mula sa Roblox para malaman natin ang tunay na dahilan
         error_msg = "Tinanggihan ng Roblox."
         try:
             roblox_json = response.json()
             if "errors" in roblox_json and len(roblox_json["errors"]) > 0:
-                error_msg = roblox_json["errors"][0].get("message", "Maling detalye o proteksyon ng Roblox.")
+                error_msg = roblox_json["errors"][0].get("message", "Maling detalye.")
         except:
             if response.status_code == 403:
-                error_msg = "IP Block ng Roblox (Hinarang ng Roblox ang server ng Render)."
+                error_msg = "IP Block ng Roblox Server (Hinarang ng Roblox ang IP ng Render)."
         
         return jsonify({
             "success": False, 
